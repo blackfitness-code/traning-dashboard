@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Training Revenue Dashboard — มี.ค. 2569</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    * { font-family: 'Kanit', sans-serif; }
+    body { background: #f0f2f5; }
+    .stat-card { background: #fff; border-radius: 12px; border: 1px solid #e5e7eb; }
+    .chart-card { background: #fff; border-radius: 12px; border: 1px solid #e5e7eb; }
+    thead tr th { background: #f8fafc; }
+    .badge { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 500; }
+  </style>
+</head>
+<body class="min-h-screen">
+
+  <!-- Top Bar -->
+  <div class="bg-white border-b border-gray-200 px-8 py-3 flex items-center justify-center gap-2">
+    <a href="dashboard.html" class="px-5 py-2 rounded-lg text-sm font-medium bg-indigo-600 text-white">ภาพรวมเทรนเนอร์</a>
+    <a href="dashboard-level.html" class="px-5 py-2 rounded-lg text-sm font-medium text-gray-500 hover:bg-gray-100 transition-colors">แยก Level</a>
+  </div>
+
+
+
+  <div class="max-w-7xl mx-auto px-6 py-8">
+
+    <!-- Page Title -->
+    <div class="mb-8">
+      <h1 class="text-xl font-semibold text-gray-800">ภาพรวมค่าเทรน</h1>
+      <p class="text-sm text-gray-400 font-light mt-0.5">เปรียบเทียบรายได้และค่าสอนที่ได้ของเทรนเนอร์แต่ละคน</p>
+    </div>
+
+    <!-- KPI Cards -->
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8" id="kpi-cards"></div>
+
+    <!-- Charts Row -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-5 mb-8">
+      <div class="chart-card p-6 lg:col-span-2">
+        <p class="text-sm font-medium text-gray-700 mb-1">รายได้ vs ค่าสอน รายเทรนเนอร์</p>
+        <p class="text-xs text-gray-400 font-light mb-5">เรียงตามรายได้สูงสุด</p>
+        <div style="height:300px"><canvas id="barChart"></canvas></div>
+      </div>
+      <div class="chart-card p-6">
+        <p class="text-sm font-medium text-gray-700 mb-1">สัดส่วนรายได้</p>
+        <p class="text-xs text-gray-400 font-light mb-5">แบ่งตามเทรนเนอร์</p>
+        <div style="height:300px"><canvas id="pieChart"></canvas></div>
+      </div>
+    </div>
+
+    <!-- Profit Chart + Table -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-5">
+      <div class="chart-card p-6">
+        <p class="text-sm font-medium text-gray-700 mb-1">กำไรสุทธิ</p>
+        <p class="text-xs text-gray-400 font-light mb-5">รายได้ หักค่าสอน</p>
+        <div style="height:280px"><canvas id="profitChart"></canvas></div>
+      </div>
+      <div class="chart-card p-6 lg:col-span-2 overflow-x-auto">
+        <div class="flex items-center justify-between mb-1">
+          <p class="text-sm font-medium text-gray-700">ตารางรายละเอียด</p>
+          <div class="flex gap-1 text-xs">
+            <button onclick="sortTable('profit')" id="btn-profit" class="sort-btn px-3 py-1 rounded-lg bg-indigo-600 text-white font-medium transition-colors">กำไร ↓</button>
+            <button onclick="sortTable('income')" id="btn-income" class="sort-btn px-3 py-1 rounded-lg bg-gray-100 text-gray-500 font-medium transition-colors">รายได้</button>
+            <button onclick="sortTable('margin')" id="btn-margin" class="sort-btn px-3 py-1 rounded-lg bg-gray-100 text-gray-500 font-medium transition-colors">Margin</button>
+          </div>
+        </div>
+        <p class="text-xs text-gray-400 font-light mb-4">คลิกหัวข้อเพื่อเรียงลำดับ</p>
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="text-xs text-gray-500 font-medium">
+              <th class="text-left py-2.5 px-3 rounded-l-lg">#</th>
+              <th class="text-left py-2.5 px-3">เทรนเนอร์</th>
+              <th class="text-right py-2.5 px-3">รายได้</th>
+              <th class="text-right py-2.5 px-3">ค่าสอน</th>
+              <th class="text-right py-2.5 px-3">กำไร</th>
+              <th class="text-right py-2.5 px-3 rounded-r-lg">Margin</th>
+            </tr>
+          </thead>
+          <tbody id="detail-table"></tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+
+<script>
+const raw = [
+  { name:"Plug",   income:96685.03,  expense:54526.76 },
+  { name:"Max",    income:72679.37,  expense:30175.00 },
+  { name:"Aut",    income:67277.75,  expense:37179.85 },
+  { name:"Smarch", income:52702.57,  expense:18205.00 },
+  { name:"Ton",    income:47028.28,  expense:17795.00 },
+  { name:"Best",   income:37092.09,  expense:19844.27 },
+  { name:"Dome",   income:30809.54,  expense:18723.72 },
+  { name:"Toto",   income:28078.04,  expense:10665.00 },
+  { name:"Jo",     income:27313.46,  expense:10470.00 },
+  { name:"Hut",    income:14617.60,  expense:4975.00  },
+  { name:"Toey",   income:11867.12,  expense:3510.00  },
+  { name:"Uro",    income:9325.23,   expense:2200.00  },
+  { name:"Mike",   income:4367.29,   expense:2100.00  },
+  { name:"Bet",    income:1943.36,   expense:600.00   },
+];
+
+const fmt = v => '฿' + v.toLocaleString('th-TH', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+const fmtDec = v => '฿' + v.toLocaleString('th-TH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+const totalIncome  = raw.reduce((s,t) => s + t.income, 0);
+const totalExpense = raw.reduce((s,t) => s + t.expense, 0);
+const totalProfit  = totalIncome - totalExpense;
+const avgMargin    = (totalProfit / totalIncome * 100).toFixed(1);
+
+// KPI Cards
+const kpis = [
+  { label:"รายได้รวม",     value: fmt(totalIncome),  sub:"ทุกเทรนเนอร์",   icon:"💰", accent:"indigo" },
+  { label:"ค่าสอนรวม",     value: fmt(totalExpense), sub:"ที่จ่ายออก",      icon:"📤", accent:"rose"   },
+  { label:"กำไรสุทธิ",     value: fmt(totalProfit),  sub:"รายได้ - ค่าสอน", icon:"📈", accent:"emerald"},
+  { label:"Profit Margin", value: avgMargin + "%",   sub:"เฉลี่ยทั้งหมด",  icon:"🎯", accent:"amber"  },
+];
+const accentMap = {
+  indigo:  { bg:"bg-indigo-50",  text:"text-indigo-600",  val:"text-indigo-700"  },
+  rose:    { bg:"bg-rose-50",    text:"text-rose-600",    val:"text-rose-700"    },
+  emerald: { bg:"bg-emerald-50", text:"text-emerald-600", val:"text-emerald-700" },
+  amber:   { bg:"bg-amber-50",   text:"text-amber-600",   val:"text-amber-700"   },
+};
+const kpiContainer = document.getElementById('kpi-cards');
+kpis.forEach(k => {
+  const a = accentMap[k.accent];
+  kpiContainer.innerHTML += `
+    <div class="stat-card p-5">
+      <div class="flex items-center justify-between mb-3">
+        <span class="text-xs text-gray-500 font-light">${k.label}</span>
+        <span class="w-8 h-8 rounded-lg ${a.bg} ${a.text} flex items-center justify-center text-base">${k.icon}</span>
+      </div>
+      <p class="text-2xl font-semibold ${a.val} leading-none">${k.value}</p>
+      <p class="text-xs text-gray-400 font-light mt-1.5">${k.sub}</p>
+    </div>`;
+});
+
+const labels = raw.map(t => t.name);
+const gridColor = '#f1f5f9';
+const tickColor = '#94a3b8';
+
+const baseOpts = {
+  responsive: true, maintainAspectRatio: false,
+  plugins: { legend: { labels: { color: '#64748b', font: { family:'Kanit', size:11 }, boxWidth:10, padding:16 } } },
+};
+
+// Bar Chart
+new Chart(document.getElementById('barChart'), {
+  type: 'bar',
+  data: {
+    labels,
+    datasets: [
+      { label:'รายได้ค่าเทรน', data: raw.map(t=>t.income),  backgroundColor:'#6366f1', borderRadius:4, borderSkipped:false },
+      { label:'ค่าสอนที่ได้',  data: raw.map(t=>t.expense), backgroundColor:'#fca5a5', borderRadius:4, borderSkipped:false },
+    ]
+  },
+  options: {
+    ...baseOpts,
+    scales: {
+      x: { ticks:{ color:tickColor, font:{family:'Kanit',size:11} }, grid:{ color:gridColor } },
+      y: { ticks:{ color:tickColor, font:{family:'Kanit',size:11}, callback: v=>'฿'+v.toLocaleString() }, grid:{ color:gridColor } }
+    }
+  }
+});
+
+// Pie Chart
+const palette = ['#6366f1','#8b5cf6','#ec4899','#f43f5e','#f97316','#eab308','#22c55e','#14b8a6','#06b6d4','#3b82f6','#a855f7','#d946ef','#84cc16','#64748b'];
+new Chart(document.getElementById('pieChart'), {
+  type: 'doughnut',
+  data: {
+    labels,
+    datasets: [{ data: raw.map(t=>t.income), backgroundColor: palette, borderWidth:0, hoverOffset:6 }]
+  },
+  options: {
+    ...baseOpts,
+    cutout: '65%',
+    plugins: {
+      legend: { position:'bottom', labels:{ color:'#64748b', font:{family:'Kanit',size:10}, boxWidth:8, padding:10 } }
+    }
+  }
+});
+
+// Profit Chart
+const profits = raw.map(t => t.income - t.expense);
+new Chart(document.getElementById('profitChart'), {
+  type: 'bar',
+  data: {
+    labels,
+    datasets: [{ label:'กำไร', data: profits, backgroundColor: profits.map(p => p>=0 ? '#6366f1' : '#f87171'), borderRadius:4, borderSkipped:false }]
+  },
+  options: {
+    ...baseOpts,
+    indexAxis: 'y',
+    plugins: { legend: { display:false } },
+    scales: {
+      x: { ticks:{ color:tickColor, font:{family:'Kanit',size:10}, callback: v=>'฿'+v.toLocaleString() }, grid:{ color:gridColor } },
+      y: { ticks:{ color:tickColor, font:{family:'Kanit',size:11} }, grid:{ display:false } }
+    }
+  }
+});
+
+// Table with sort
+let currentSort = 'profit';
+function renderTable(sortKey) {
+  const tbody = document.getElementById('detail-table');
+  const sorted = [...raw].map(t => ({ ...t, profit: t.income - t.expense, margin: (t.income - t.expense) / t.income * 100 }))
+    .sort((a, b) => b[sortKey] - a[sortKey]);
+  tbody.innerHTML = '';
+  sorted.forEach((t, i) => {
+    const marginColor = t.margin >= 50 ? 'bg-emerald-50 text-emerald-700' : t.margin >= 35 ? 'bg-amber-50 text-amber-700' : 'bg-rose-50 text-rose-700';
+    const rankIcon = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i+1}`;
+    tbody.innerHTML += `
+      <tr class="border-b border-gray-50 hover:bg-gray-50 transition-colors">
+        <td class="py-2.5 px-3 text-gray-400 text-xs">${rankIcon}</td>
+        <td class="py-2.5 px-3 font-medium text-gray-700">${t.name}</td>
+        <td class="py-2.5 px-3 text-right text-gray-700">${fmt(t.income)}</td>
+        <td class="py-2.5 px-3 text-right text-gray-500">${fmt(t.expense)}</td>
+        <td class="py-2.5 px-3 text-right font-medium text-indigo-600">${fmt(t.profit)}</td>
+        <td class="py-2.5 px-3 text-right"><span class="badge ${marginColor}">${t.margin.toFixed(1)}%</span></td>
+      </tr>`;
+  });
+}
+function sortTable(key) {
+  currentSort = key;
+  document.querySelectorAll('.sort-btn').forEach(b => {
+    b.className = 'sort-btn px-3 py-1 rounded-lg bg-gray-100 text-gray-500 font-medium transition-colors';
+  });
+  const labels = { profit:'กำไร ↓', income:'รายได้ ↓', margin:'Margin ↓' };
+  const btn = document.getElementById('btn-' + key);
+  btn.className = 'sort-btn px-3 py-1 rounded-lg bg-indigo-600 text-white font-medium transition-colors';
+  btn.textContent = labels[key];
+  renderTable(key);
+}
+renderTable('profit');
+</script>
+</body>
+</html>

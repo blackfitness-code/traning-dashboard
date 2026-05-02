@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Level Dashboard — มี.ค. 2569</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    * { font-family: 'Kanit', sans-serif; }
+    body { background: #f0f2f5; }
+    .card { background: #fff; border-radius: 12px; border: 1px solid #e5e7eb; }
+    .badge { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 500; }
+    .level-tab { transition: all 0.15s; cursor: pointer; }
+  </style>
+</head>
+<body class="min-h-screen">
+
+  <!-- Top Bar -->
+  <div class="bg-white border-b border-gray-200 px-8 py-3 flex items-center justify-center gap-2">
+    <a href="dashboard.html" class="px-5 py-2 rounded-lg text-sm font-medium text-gray-500 hover:bg-gray-100 transition-colors">ภาพรวมเทรนเนอร์</a>
+    <a href="dashboard-level.html" class="px-5 py-2 rounded-lg text-sm font-medium bg-violet-600 text-white">แยก Level</a>
+  </div>
+
+  <div class="max-w-7xl mx-auto px-6 py-8">
+
+    <div class="mb-6">
+      <h1 class="text-xl font-semibold text-gray-800">เปรียบเทียบตาม Level</h1>
+      <p class="text-sm text-gray-400 font-light mt-0.5">Junior / Senior / Super / Master — รายได้และค่าสอนรวมทุกเทรนเนอร์</p>
+    </div>
+
+    <!-- Level Tabs -->
+    <div class="flex gap-2 mb-8">
+      <button onclick="setLevel('all')"    id="tab-all"    class="level-tab px-4 py-2 rounded-lg text-sm font-medium bg-violet-600 text-white">ทั้งหมด</button>
+      <button onclick="setLevel('master')" id="tab-master" class="level-tab px-4 py-2 rounded-lg text-sm font-medium bg-gray-100 text-gray-500">Master</button>
+      <button onclick="setLevel('senior')" id="tab-senior" class="level-tab px-4 py-2 rounded-lg text-sm font-medium bg-gray-100 text-gray-500">Senior</button>
+      <button onclick="setLevel('super')"  id="tab-super"  class="level-tab px-4 py-2 rounded-lg text-sm font-medium bg-gray-100 text-gray-500">Super</button>
+      <button onclick="setLevel('junior')" id="tab-junior" class="level-tab px-4 py-2 rounded-lg text-sm font-medium bg-gray-100 text-gray-500">Junior</button>
+    </div>
+
+    <!-- KPI Cards -->
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8" id="kpi-cards"></div>
+
+    <!-- Charts -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-5 mb-8">
+      <div class="card p-6 lg:col-span-2">
+        <p class="text-sm font-medium text-gray-700 mb-1">รายได้ vs ค่าสอน แยก Level</p>
+        <p class="text-xs text-gray-400 font-light mb-5">รวมทุกเทรนเนอร์ในแต่ละ level</p>
+        <div style="height:300px"><canvas id="barChart"></canvas></div>
+      </div>
+      <div class="card p-6">
+        <p class="text-sm font-medium text-gray-700 mb-1">สัดส่วนรายได้ตาม Level</p>
+        <p class="text-xs text-gray-400 font-light mb-5">% ของรายได้รวม</p>
+        <div style="height:300px"><canvas id="pieChart"></canvas></div>
+      </div>
+    </div>
+
+    <!-- Per-trainer breakdown -->
+    <div class="card p-6">
+      <div class="flex items-center justify-between mb-1">
+        <p class="text-sm font-medium text-gray-700">รายละเอียดรายเทรนเนอร์</p>
+        <span id="level-badge" class="badge bg-violet-50 text-violet-600">ทุก Level</span>
+      </div>
+      <p class="text-xs text-gray-400 font-light mb-5">เรียงตามกำไรสูงสุด</p>
+      <div style="height:280px"><canvas id="trainerChart"></canvas></div>
+    </div>
+
+    <!-- Detail Table -->
+    <div class="card p-6 mt-5 overflow-x-auto">
+      <p class="text-sm font-medium text-gray-700 mb-4">ตารางรายละเอียดแยก Level</p>
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="text-xs text-gray-500 font-medium bg-gray-50">
+            <th class="text-left py-2.5 px-3 rounded-l-lg">เทรนเนอร์</th>
+            <th class="text-left py-2.5 px-3">Level</th>
+            <th class="text-right py-2.5 px-3">รายได้</th>
+            <th class="text-right py-2.5 px-3">ค่าสอน</th>
+            <th class="text-right py-2.5 px-3">กำไร</th>
+            <th class="text-right py-2.5 px-3 rounded-r-lg">Margin</th>
+          </tr>
+        </thead>
+        <tbody id="detail-table"></tbody>
+      </table>
+    </div>
+
+  </div>
+
+<script>
+// Raw data per trainer per level (from Excel)
+const rawData = [
+  { trainer:"Dome",   level:"master", income:21048.82,  expense:11558.40 },
+  { trainer:"Dome",   level:"senior", income:2803.18,   expense:2309.70  },
+  { trainer:"Dome",   level:"super",  income:6957.54,   expense:4855.62  },
+  { trainer:"Aut",    level:"master", income:30918.11,  expense:16541.19 },
+  { trainer:"Aut",    level:"senior", income:16824.18,  expense:10187.20 },
+  { trainer:"Aut",    level:"super",  income:19535.45,  expense:10451.47 },
+  { trainer:"Best",   level:"master", income:10363.07,  expense:5544.24  },
+  { trainer:"Best",   level:"senior", income:19302.38,  expense:10326.78 },
+  { trainer:"Best",   level:"super",  income:7426.64,   expense:3973.25  },
+  { trainer:"Ton",    level:"senior", income:43058.66,  expense:16620.00 },
+  { trainer:"Ton",    level:"super",  income:3969.63,   expense:1175.00  },
+  { trainer:"Smarch", level:"master", income:4449.52,   expense:1110.00  },
+  { trainer:"Smarch", level:"senior", income:39459.30,  expense:13480.00 },
+  { trainer:"Smarch", level:"super",  income:8793.76,   expense:3615.00  },
+  { trainer:"Toey",   level:"senior", income:11867.12,  expense:3510.00  },
+  { trainer:"Mike",   level:"junior", income:3620.56,   expense:1950.00  },
+  { trainer:"Mike",   level:"senior", income:746.73,    expense:150.00   },
+  { trainer:"Plug",   level:"master", income:80292.62,  expense:43529.55 },
+  { trainer:"Plug",   level:"senior", income:1120.87,   expense:999.67   },
+  { trainer:"Plug",   level:"super",  income:15271.54,  expense:9997.55  },
+  { trainer:"Max",    level:"master", income:4459.90,   expense:2660.00  },
+  { trainer:"Max",    level:"senior", income:22400.63,  expense:11055.00 },
+  { trainer:"Max",    level:"super",  income:45818.85,  expense:16460.00 },
+  { trainer:"Toto",   level:"senior", income:6630.75,   expense:3000.00  },
+  { trainer:"Toto",   level:"super",  income:21447.29,  expense:7665.00  },
+  { trainer:"Hut",    level:"master", income:1868.54,   expense:400.00   },
+  { trainer:"Hut",    level:"senior", income:11908.88,  expense:4350.00  },
+  { trainer:"Hut",    level:"super",  income:840.19,    expense:225.00   },
+  { trainer:"Uro",    level:"junior", income:7085.05,   expense:1900.00  },
+  { trainer:"Uro",    level:"senior", income:2240.19,   expense:300.00   },
+  { trainer:"Jo",     level:"senior", income:23165.05,  expense:8760.00  },
+  { trainer:"Jo",     level:"super",  income:4148.41,   expense:1710.00  },
+  { trainer:"Bet",    level:"senior", income:560.56,    expense:200.00   },
+  { trainer:"Bet",    level:"super",  income:1382.80,   expense:400.00   },
+];
+
+const levels = ['master','senior','super','junior'];
+const levelColors = { master:'#6366f1', senior:'#22c55e', super:'#f97316', junior:'#06b6d4' };
+const levelLabels = { master:'Master', senior:'Senior', super:'Super', junior:'Junior' };
+const fmt = v => '฿' + v.toLocaleString('th-TH', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+const gridColor = '#f1f5f9', tickColor = '#94a3b8';
+const baseOpts = { responsive:true, maintainAspectRatio:false, plugins:{ legend:{ labels:{ color:'#64748b', font:{family:'Kanit',size:11}, boxWidth:10, padding:14 } } } };
+
+let barChartInst, pieChartInst, trainerChartInst;
+let currentLevel = 'all';
+
+function getFiltered(level) {
+  return level === 'all' ? rawData : rawData.filter(d => d.level === level);
+}
+
+function sumByLevel(data) {
+  const map = {};
+  data.forEach(d => {
+    if (!map[d.level]) map[d.level] = { income:0, expense:0 };
+    map[d.level].income  += d.income;
+    map[d.level].expense += d.expense;
+  });
+  return map;
+}
+
+function sumByTrainer(data) {
+  const map = {};
+  data.forEach(d => {
+    if (!map[d.trainer]) map[d.trainer] = { income:0, expense:0 };
+    map[d.trainer].income  += d.income;
+    map[d.trainer].expense += d.expense;
+  });
+  return Object.entries(map).map(([name, v]) => ({ name, ...v, profit: v.income - v.expense }))
+    .sort((a,b) => b.profit - a.profit);
+}
+
+function renderKPI(data) {
+  const totalIncome  = data.reduce((s,d) => s + d.income, 0);
+  const totalExpense = data.reduce((s,d) => s + d.expense, 0);
+  const totalProfit  = totalIncome - totalExpense;
+  const margin       = (totalProfit / totalIncome * 100).toFixed(1);
+  const kpis = [
+    { label:"รายได้รวม",     value:fmt(totalIncome),  sub:"ทุก level",        icon:"💰", bg:"bg-indigo-50",  val:"text-indigo-700"  },
+    { label:"ค่าสอนรวม",     value:fmt(totalExpense), sub:"ที่จ่ายออก",       icon:"📤", bg:"bg-rose-50",    val:"text-rose-700"    },
+    { label:"กำไรสุทธิ",     value:fmt(totalProfit),  sub:"รายได้ - ค่าสอน", icon:"📈", bg:"bg-emerald-50", val:"text-emerald-700" },
+    { label:"Profit Margin", value:margin + "%",      sub:"เฉลี่ยรวม",        icon:"🎯", bg:"bg-amber-50",   val:"text-amber-700"   },
+  ];
+  document.getElementById('kpi-cards').innerHTML = kpis.map(k => `
+    <div class="card p-5">
+      <div class="flex items-center justify-between mb-3">
+        <span class="text-xs text-gray-500 font-light">${k.label}</span>
+        <span class="w-8 h-8 rounded-lg ${k.bg} flex items-center justify-center text-base">${k.icon}</span>
+      </div>
+      <p class="text-2xl font-semibold ${k.val} leading-none">${k.value}</p>
+      <p class="text-xs text-gray-400 font-light mt-1.5">${k.sub}</p>
+    </div>`).join('');
+}
+
+function renderBarChart(data) {
+  const byLevel = sumByLevel(data);
+  const lvls = levels.filter(l => byLevel[l]);
+  const incomes  = lvls.map(l => byLevel[l].income);
+  const expenses = lvls.map(l => byLevel[l].expense);
+  if (barChartInst) barChartInst.destroy();
+  barChartInst = new Chart(document.getElementById('barChart'), {
+    type:'bar',
+    data:{ labels: lvls.map(l => levelLabels[l]),
+      datasets:[
+        { label:'รายได้', data:incomes,  backgroundColor: lvls.map(l => levelColors[l]), borderRadius:4, borderSkipped:false },
+        { label:'ค่าสอน', data:expenses, backgroundColor: lvls.map(l => levelColors[l]+'55'), borderRadius:4, borderSkipped:false },
+      ]
+    },
+    options:{ ...baseOpts, scales:{
+      x:{ ticks:{color:tickColor,font:{family:'Kanit',size:12}}, grid:{color:gridColor} },
+      y:{ ticks:{color:tickColor,font:{family:'Kanit',size:11},callback:v=>'฿'+v.toLocaleString()}, grid:{color:gridColor} }
+    }}
+  });
+}
+
+function renderPieChart(data) {
+  const byLevel = sumByLevel(data);
+  const lvls = levels.filter(l => byLevel[l]);
+  if (pieChartInst) pieChartInst.destroy();
+  pieChartInst = new Chart(document.getElementById('pieChart'), {
+    type:'doughnut',
+    data:{ labels: lvls.map(l => levelLabels[l]),
+      datasets:[{ data: lvls.map(l => byLevel[l].income), backgroundColor: lvls.map(l => levelColors[l]), borderWidth:0, hoverOffset:6 }]
+    },
+    options:{ ...baseOpts, cutout:'65%', plugins:{ legend:{ position:'bottom', labels:{ color:'#64748b', font:{family:'Kanit',size:11}, boxWidth:10, padding:12 } } } }
+  });
+}
+
+function renderTrainerChart(data) {
+  const byTrainer = sumByTrainer(data);
+  if (trainerChartInst) trainerChartInst.destroy();
+  trainerChartInst = new Chart(document.getElementById('trainerChart'), {
+    type:'bar',
+    data:{ labels: byTrainer.map(t => t.name),
+      datasets:[
+        { label:'รายได้', data: byTrainer.map(t=>t.income),  backgroundColor:'#6366f1', borderRadius:4, borderSkipped:false },
+        { label:'ค่าสอน', data: byTrainer.map(t=>t.expense), backgroundColor:'#fca5a5', borderRadius:4, borderSkipped:false },
+      ]
+    },
+    options:{ ...baseOpts, scales:{
+      x:{ ticks:{color:tickColor,font:{family:'Kanit',size:11}}, grid:{color:gridColor} },
+      y:{ ticks:{color:tickColor,font:{family:'Kanit',size:11},callback:v=>'฿'+v.toLocaleString()}, grid:{color:gridColor} }
+    }}
+  });
+}
+
+function renderTable(data) {
+  const tbody = document.getElementById('detail-table');
+  const sorted = [...data].map(d => ({ ...d, profit: d.income - d.expense, margin: (d.income - d.expense)/d.income*100 }))
+    .sort((a,b) => b.profit - a.profit);
+  const levelBadge = { master:'bg-indigo-50 text-indigo-700', senior:'bg-emerald-50 text-emerald-700', super:'bg-orange-50 text-orange-700', junior:'bg-cyan-50 text-cyan-700' };
+  tbody.innerHTML = sorted.map((d, i) => {
+    const marginColor = d.margin >= 50 ? 'bg-emerald-50 text-emerald-700' : d.margin >= 35 ? 'bg-amber-50 text-amber-700' : 'bg-rose-50 text-rose-700';
+    const rankIcon = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i+1}`;
+    return `<tr class="border-b border-gray-50 hover:bg-gray-50 transition-colors">
+      <td class="py-2.5 px-3 font-medium text-gray-700">${rankIcon} ${d.trainer}</td>
+      <td class="py-2.5 px-3"><span class="badge ${levelBadge[d.level]}">${levelLabels[d.level]}</span></td>
+      <td class="py-2.5 px-3 text-right text-gray-700">${fmt(d.income)}</td>
+      <td class="py-2.5 px-3 text-right text-gray-500">${fmt(d.expense)}</td>
+      <td class="py-2.5 px-3 text-right font-medium text-violet-600">${fmt(d.profit)}</td>
+      <td class="py-2.5 px-3 text-right"><span class="badge ${marginColor}">${d.margin.toFixed(1)}%</span></td>
+    </tr>`;
+  }).join('');
+}
+
+function setLevel(level) {
+  currentLevel = level;
+  document.querySelectorAll('.level-tab').forEach(b => {
+    b.className = 'level-tab px-4 py-2 rounded-lg text-sm font-medium bg-gray-100 text-gray-500';
+  });
+  document.getElementById('tab-' + level).className = 'level-tab px-4 py-2 rounded-lg text-sm font-medium bg-violet-600 text-white';
+  const levelBadgeText = { all:'ทุก Level', master:'Master', senior:'Senior', super:'Super', junior:'Junior' };
+  document.getElementById('level-badge').textContent = levelBadgeText[level];
+  const filtered = getFiltered(level);
+  renderKPI(filtered);
+  renderBarChart(filtered);
+  renderPieChart(filtered);
+  renderTrainerChart(filtered);
+  renderTable(filtered);
+}
+
+setLevel('all');
+</script>
+</body>
+</html>
